@@ -1,0 +1,7 @@
+For testing purpose, the following command can be used to run the project
+locally on 4 threads.
+
+$ spark-submit --class "main.scala.Project1" \
+               --master "local[4]" \
+               target/scala-2.11/assignment1_2.11-1.0.jar \
+               input output
