@@ -137,14 +137,30 @@ object Project1 {
     // println(records take 10 mkString "\n")
 
 
-    // Do the GROUP BY now to count the occurance of orders per customer
-    val ordersCount = ordersMiniFiltered.aggregateByKey(0)((acc, _) => acc + 1, _ + _)
-    // println((ordersCount take 1000) sortWith { (x, y) => x._2 > y._2 } take 10 mkString "\n")
-    val product = custkeys cartesian ordersCount collect {
-      case (k1, (k2, _)) if k1 == k2 => (k1, 0) // the 0 is actually not used
-    }
-    val records = product.aggregateByKey(0)((acc, _) => acc + 1, _ + _)
+    // // Do the GROUP BY now to count the occurance of orders per customer
+    // val ordersCount = ordersMiniFiltered.aggregateByKey(0)((acc, _) => acc + 1, _ + _)
+    // // println((ordersCount take 1000) sortWith { (x, y) => x._2 > y._2 } take 10 mkString "\n")
+    // val product = custkeys cartesian ordersCount map { case (k1, (k2, count)) =>
+    //   if (k1 == k2) (k1, count)
+    //   else          (k1, 0)
+    // }
+    // val records = product.aggregateByKey(0)((acc, count) => acc + count, _ + _)
+    //
+    // println(records take 10 mkString "\n")
 
-    println(records take 10 mkString "\n")
+    // Create a view (key, key) to use Spark's join
+    val custkeys2 = custkeys keyBy identity
+
+    // Count the # of orders per customer, dropping comments
+    val ordersCount = ordersMiniFiltered.aggregateByKey(0)((acc, _) => acc + 1, _ + _)
+
+    // Apply the left outer join then mapping values,
+    // resulting in (key, count)
+    val join = custkeys2 leftOuterJoin ordersCount mapValues { //v => v match {
+      case (_, Some(count)) => count
+      case (_, None)        => 0
+    }//}
+
+    println(( join filter { _._2 > 1 } ) take 100 mkString "\n")
   }
 }
