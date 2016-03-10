@@ -82,7 +82,7 @@ object Project1 {
     // Extract the minimal schema for customers in the query: (key)
     val custkeys = customers map { record =>
       val fields  = record split '|'
-      val custkey = fields(0)
+      val custkey = fields(0).toInt
       // TODO this might be optimised into `record takeWhile { _ != '|' }`
 
       custkey
@@ -91,7 +91,7 @@ object Project1 {
     // Extract the minimal schema for orders in the query: (key, comment)
     val ordersMini = orders map { record =>
       val fields  = record split '|'
-      val custkey = fields(1)
+      val custkey = fields(1).toInt
       val comment = fields(8)
 
       (custkey, comment)
