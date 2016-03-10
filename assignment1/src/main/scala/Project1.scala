@@ -134,13 +134,19 @@ object Project1 {
     // Count the # of orders per customer, dropping comments
     val ordersCount = ordersMiniFiltered.aggregateByKey(0)((acc, _) => acc + 1, _ + _)
 
-    // Apply the left outer join then mapping values,
+    // Apply the left outer join then mapping values (to drop the extra key),
     // resulting in (key, count)
     val join = custkeys2 leftOuterJoin ordersCount mapValues {
       case (_, Some(count)) => count
       case (_, None)        => 0
     }
 
-    // println(( join filter { _._2 > 1 } ) take 100 mkString "\n")
+    // Swap key <-> count schema to group by count
+    val records = join map { case (key, count) => (count, key) }
+
+    // Count the number of customers for a given order count
+    val answer = records.aggregateByKey(0)((acc, _) => acc + 1, _ + _)
+
+    println(answer.collectAsMap mkString "\n")
   }
 }
