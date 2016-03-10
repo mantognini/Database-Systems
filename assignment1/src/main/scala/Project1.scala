@@ -12,6 +12,9 @@ object Project1 {
   ) {
     def getCustomersPath = input + "/customer.tbl"
     def getOrdersPath    = input + "/orders.tbl"
+
+    // TODO extend for Project2
+    def getOutputPath = output + "/out"
   }
 
   def extractSettings(args: Array[String]): Settings = {
@@ -147,6 +150,7 @@ object Project1 {
     // Count the number of customers for a given order count
     val answer = records.aggregateByKey(0)((acc, _) => acc + 1, _ + _)
 
-    println(answer.collectAsMap mkString "\n")
+    //println(answer.collectAsMap mkString "\n")
+    answer saveAsTextFile s.getOutputPath
   }
 }
