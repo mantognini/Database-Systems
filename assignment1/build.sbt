@@ -10,4 +10,7 @@ scalacOptions ++= Seq(
   "-feature"
 )
 
+// Hardcode the artifact name
+artifactName := { (_, _, _) => "Project1.jar" }
+
 libraryDependencies += "org.apache.spark" %% "spark-core" % "1.6.0"
