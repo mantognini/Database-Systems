@@ -1,7 +1,14 @@
-For testing purpose, the following command can be used to run the project
-locally on 4 threads.
+For testing purpose, the following fish function can be used to run the project
+locally on 4 threads, assuming output/expected is filled in by correct data.
 
-$ spark-submit --class "main.scala.Project1" \
-               --master "local[4]" \
-               target/scala-2.11/assignment1_2.11-1.0.jar \
-               input output
+function testdb
+	    sbt package ^&1 > log.err.txt
+  and rm -fr output/out
+  and spark-submit --class "main.scala.Project1" \
+                   --master "local[4]" \
+                   target/scala-2.11/assignment1_2.11-1.0.jar \
+                   input output ^^ log.err.txt | tee log.out.txt
+  and test -d output/out/
+  and cat output/out/* | sort -n | cmp output/expected -
+  and echo "Success!"; or begin echo "Failure"; cat log.err.txt; end
+end

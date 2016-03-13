@@ -106,7 +106,7 @@ object Project1 {
       val pattern = regex.pattern
       // TODO it might be better to build this pattern once per node
 
-      pattern.matcher(comment.toLowerCase).matches
+      !pattern.matcher(comment.toLowerCase).matches
     }
     // TODO it might be better to merge this filtering into the previous
     // mapping by using `collect` with a partial function, or use
@@ -150,7 +150,7 @@ object Project1 {
     // Count the number of customers for a given order count
     val answer = records.aggregateByKey(0)((acc, _) => acc + 1, _ + _)
 
-    //println(answer.collectAsMap mkString "\n")
-    answer saveAsTextFile s.getOutputPath
+    // Save answers to file
+    answer map { case (count, key) => s"$count|$key" } saveAsTextFile s.getOutputPath
   }
 }

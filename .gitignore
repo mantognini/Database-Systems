@@ -2,3 +2,5 @@ target/
 assignment1/input
 derby.log
 assignment1/output
+log.err.txt
+log.out.txt
