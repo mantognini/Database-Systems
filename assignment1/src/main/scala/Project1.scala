@@ -112,18 +112,17 @@ object Project1 {
       keys map { key => (key, 0) } // this value is actually not used
     }
 
-    // Load normal orders and start counting
-    val orders = {
-      val source  = sc textFile s.getOrdersPath
-      val records = source map extractOrders
+    // Load normal orders and start counting the number of orders
+    // (for each customer having at least one order)
+    val orderCount = {
+      val source = sc textFile s.getOrdersPath
+      val orders = source map extractOrders
 
-      records collect { case (key, IsNormal(comment)) =>
-        (key, 1) // initial count is one
-      }
+      orders.aggregateByKey(0)({
+        case (acc, IsNormal(comment)) => acc + 1
+        case (acc, _)                 => acc      // Ignore special requests
+      }, { _ + _ })
     }
-
-    // Count the number of orders for each customer having at least one order
-    val orderCount = orders reduceByKey { _ + _ }
 
     // Apply the left outer join then map the data to start counting,
     // dropping the extra 0 along the way and resulting in (count, 1)
