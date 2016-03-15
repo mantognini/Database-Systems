@@ -22,7 +22,6 @@ import org.apache.spark.SparkConf
 //
 // NOTE: The left outer join keeps track of unmatched data on the left.
 // NOTE: `%` match any number of characters
-// NOTE: SQL LIKE statement is not case sensitive
 //
 // The schemata are:                             NEEDED?
 //
@@ -82,7 +81,7 @@ object Project1 {
     }
 
     val pattern = """.*special.*requests.*""".r.pattern
-    def test(comment: String) = pattern.matcher(comment.toLowerCase).matches
+    def test(comment: String) = pattern.matcher(comment).matches
   }
 
   // Extract orders's client id and its comment
