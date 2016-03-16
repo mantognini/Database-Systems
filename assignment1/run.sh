@@ -18,3 +18,5 @@ spark-submit --class "main.scala.Project1" \
 
 hadoop fs -cat '/user/mantogni/output/out/*' | sort -n
 
+hadoop fs -get '/spark-history/application_*' /home/mantogni/logs/ 2>/dev/null
+
