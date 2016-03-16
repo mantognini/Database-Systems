@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 if [ -z $1 ]
 then
         echo "Expected input argument for dataset size" 1>&2
