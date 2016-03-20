@@ -112,7 +112,7 @@ object Project2 {
 
     // Load normal orders and start counting
     val orders = {
-      val source  = sc.textFile(s.getOrdersPath, 100)
+      val source  = sc textFile s.getOrdersPath
       val records = source map extractOrders
 
       records flatMapValues {
