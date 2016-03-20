@@ -66,7 +66,7 @@ object Project2 {
       if (s.task == 1) runTask1(sc, s)
       else             runTask2(sc, s)
 
-    histogram map { case (k, v) => s"$k|$v" } saveAsTextFile s.getOutputPath
+    histogram map { case (k, v) => s"$k|$v" } coalesce 1 saveAsTextFile s.getOutputPath
   }
 
   def runTask1(sc: SparkContext, s: Settings) = {
