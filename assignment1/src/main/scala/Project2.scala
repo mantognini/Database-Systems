@@ -115,8 +115,9 @@ object Project2 {
       val source  = sc textFile s.getOrdersPath
       val records = source map extractOrders
 
-      records collect { case (key, IsNormal(comment)) =>
-        (key, 1) // initial count is one
+      records flatMapValues {
+        case IsNormal(_) => Some(1) // initial count is one
+        case _           => None    // ignore
       }
     }
 
