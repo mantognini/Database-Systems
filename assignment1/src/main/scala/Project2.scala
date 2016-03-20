@@ -91,11 +91,11 @@ object Project2 {
 
     // Apply the left outer join then map the data to start counting,
     // dropping the extra 0 along the way and resulting in (count, 1)
-    val join = customers leftOuterJoin orderCount map {
-      case (_, (0, Some(count))) => (count, 1)
-      case (_, (0, None))        => (0,     1)
-
-      case (_, (e, _))           => sys.error("unexpected value " + e)
+    // NOTE: the left outer join is computed using cogroup
+    val join = customers cogroup orderCount map {
+      /* (key, (iterator of 0, iterator of count))      */
+      /*        but both sequence have only one element */
+      case (_, (_, countIter)) => (countIter.headOption getOrElse 0, 1)
     }
 
     // Finilise the histogram and save the result in the proper format
