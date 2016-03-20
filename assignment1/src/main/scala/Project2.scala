@@ -54,6 +54,18 @@ object Project2 {
     (custkey, comment)
   }
 
+  // Extract normal order and start counting
+  private def extractNormalOrder(record: String): Option[(Int, Int)] = {
+    val fields  = record split '|'
+    val custkey = fields(1).toInt
+    val comment = fields(8)
+
+    comment match {
+      case IsNormal(_) => Some((custkey, 1))
+      case _           => None
+    }
+  }
+
   // Main program procedure:
   // Read the data from file and save the result to file in the same CSV format
   def main(args: Array[String]): Unit = {
@@ -111,15 +123,8 @@ object Project2 {
     // Hence, no seed of customers anymore!
 
     // Load normal orders and start counting
-    val orders = {
-      val source  = sc textFile s.getOrdersPath
-      val records = source map extractOrders
+    val orders = sc textFile s.getOrdersPath flatMap extractNormalOrder
 
-      records flatMapValues {
-        case IsNormal(_) => Some(1) // initial count is one
-        case _           => None    // ignore
-      }
-    }
 
     // Count the number of orders for each customer having at least one order
     val orderCount = orders reduceByKey { _ + _ }
