@@ -3,66 +3,28 @@ package main.scala
 import org.apache.spark.SparkContext
 import org.apache.spark.SparkConf
 
-// The query to handle is:
-//
-//  SELECT O_COUNT, COUNT(*) AS CUSTDIST
-//  FROM (
-//    SELECT C_CUSTKEY, COUNT(O_ORDERKEY)
-//    FROM CUSTOMER left outer join ORDERS on C_CUSTKEY = O_CUSTKEY
-//         AND O_COMMENT not like '%special%requests%'
-//    GROUP BY C_CUSTKEY
-//  ) AS C_ORDERS (C_CUSTKEY, O_COUNT)
-//  GROUP BY O_COUNT
-//
-// Or, in plain English:
-//
-//  For each customer we count the number of "normal" orders he made,
-//  and then produce a histogram of the number of customers (y axis)
-//  that ordered a given number of products (x axis).
-//
-// NOTE: The left outer join keeps track of unmatched data on the left.
-// NOTE: `%` match any number of characters
-//
-// The schemata are:                             NEEDED?
-//
-// CUSTOMER(C_CUSTKEY     INTEGER NOT NULL,         √
-//          C_NAME        VARCHAR(25) NOT NULL,
-//          C_ADDRESS     VARCHAR(40) NOT NULL,
-//          C_NATIONKEY   INTEGER NOT NULL,
-//          C_PHONE       CHAR(15) NOT NULL,
-//          C_ACCTBAL     DECIMAL(15,2)   NOT NULL,
-//          C_MKTSEGMENT  CHAR(10) NOT NULL,
-//          C_COMMENT     VARCHAR(117) NOT NULL)
-//
-// ORDERS(O_ORDERKEY       INTEGER NOT NULL,
-//        O_CUSTKEY        INTEGER NOT NULL,        √
-//        O_ORDERSTATUS    CHAR(1) NOT NULL,
-//        O_TOTALPRICE     DECIMAL(15,2) NOT NULL,
-//        O_ORDERDATE      DATE NOT NULL,
-//        O_ORDERPRIORITY  CHAR(15) NOT NULL,
-//        O_CLERK          CHAR(15) NOT NULL,
-//        O_SHIPPRIORITY   INTEGER NOT NULL,
-//        O_COMMENT        VARCHAR(79) NOT NULL)    √
-//
-object Project1 {
+// See Project1 for query & schemata details
+object Project2 {
   private type Path = String
 
   private case class Settings(
     input: Path,
-    output: Path
+    output: Path,
+    task: Int
   ) {
+    require(task == 1 || task == 2)
+
     def getCustomersPath = input + "/customer.tbl"
     def getOrdersPath    = input + "/orders.tbl"
-
-    def getOutputPath = output + "/out"
+    def getOutputPath    = output + "/out_" + task
   }
 
   // Read settings from command line arguments
   private def extractSettings(args: Array[String]): Settings = {
-    if (args.length != 2)
+    if (args.length != 3)
       throw new IllegalArgumentException("Incorrect number of parameters")
 
-    Settings(args(0), args(1))
+    Settings(args(0), args(1), args(2).toInt)
   }
 
   // Extract the customer's key
@@ -97,9 +59,17 @@ object Project1 {
   def main(args: Array[String]): Unit = {
     // Create a Spark context using default settings
     val s    = extractSettings(args)
-    val conf = new SparkConf().setAppName("mantogni.Project1")
+    val conf = new SparkConf().setAppName("mantogni.Project2")
     val sc   = new SparkContext(conf)
 
+    val histogram =
+      if (s.task == 1) runTask1(sc, s)
+      else             runTask2(sc, s)
+
+    histogram map { case (k, v) => s"$k|$v" } saveAsTextFile s.getOutputPath
+  }
+
+  def runTask1(sc: SparkContext, s: Settings) = {
     // Load customers' key
     val customers = {
       val source = sc textFile s.getCustomersPath
@@ -133,7 +103,27 @@ object Project1 {
     }
 
     // Finilise the histogram and save the result in the proper format
-    val histogram = join reduceByKey { _ + _ }
-    histogram map { case (k, v) => s"$k|$v" } saveAsTextFile s.getOutputPath
+    join reduceByKey { _ + _ }
+  }
+
+  def runTask2(sc: SparkContext, s: Settings) = {
+    // Optimised version with inner join instead of left outer join.
+    // Hence, no seed of customers anymore!
+
+    // Load normal orders and start counting
+    val orders = {
+      val source  = sc textFile s.getOrdersPath
+      val records = source map extractOrders
+
+      records collect { case (key, IsNormal(comment)) =>
+        (key, 1) // initial count is one
+      }
+    }
+
+    // Count the number of orders for each customer having at least one order
+    val orderCount = orders reduceByKey { _ + _ }
+
+    // Finilise the histogram and save the result in the proper format
+    orderCount map { case (_, count) => (count, 1) } reduceByKey { _ + _ }
   }
 }

@@ -14,11 +14,10 @@ sbt package
 
 spark-submit --class "main.scala.Project1" \
         --master yarn-cluster --num-executors 25 \
-        Project1.jar \
+        Project2.jar \
         hdfs:///datasets/tpch/${1}gb \
         hdfs:///user/mantogni/output
 
 hadoop fs -cat '/user/mantogni/output/out/*' | sort -n
 
 hadoop fs -get '/spark-history/application_*' /home/mantogni/logs/ 2>/dev/null
-
