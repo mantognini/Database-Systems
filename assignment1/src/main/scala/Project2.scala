@@ -2,10 +2,15 @@ package main.scala
 
 import org.apache.spark.SparkContext
 import org.apache.spark.SparkConf
+import org.apache.spark.broadcast.Broadcast
+
+import java.util.regex.{ Pattern => JPattern }
 
 // See Project1 for query & schemata details
 object Project2 {
   private type Path = String
+
+  private type Pattern = Broadcast[JPattern]
 
   private case class Settings(
     input: Path,
@@ -36,17 +41,16 @@ object Project2 {
   // Determine whether an order's comment is refering to a special request
   // (useful for pattern matching)
   private object IsNormal {
-    def unapply(comment: String): Option[String] = test(comment) match {
+    def unapply(comment: String)(implicit pattern: Pattern): Option[String] = test(comment) match {
       case true  => None
       case false => Some(comment)
     }
 
-    val pattern = """.*special.*requests.*""".r.pattern
-    def test(comment: String) = pattern.matcher(comment).matches
+    def test(comment: String)(implicit pattern: Pattern) = pattern.value.matcher(comment).matches
   }
 
   // Extract normal order and start counting
-  private def extractNormalOrder(record: String): Option[(Int, Int)] = {
+  private def extractNormalOrder(record: String)(implicit pattern: Pattern): Option[(Int, Int)] = {
     val fields  = record split '|'
     val custkey = fields(1).toInt
     val comment = fields(8)
@@ -65,6 +69,10 @@ object Project2 {
     val conf = new SparkConf().setAppName(s"mantogni.Project2 <${s.task}>")
     val sc   = new SparkContext(conf)
 
+    // Broadcast pattern
+    val p = """.*special.*requests.*""".r.pattern
+    implicit val pattern = sc broadcast p
+
     val histogram =
       if (s.task == 1) runTask1(sc, s)
       else             runTask2(sc, s)
@@ -72,7 +80,7 @@ object Project2 {
     histogram map { case (k, v) => s"$k|$v" } coalesce 1 saveAsTextFile s.getOutputPath
   }
 
-  def runTask1(sc: SparkContext, s: Settings) = {
+  def runTask1(sc: SparkContext, s: Settings)(implicit pattern: Pattern) = {
     // Load customers' key
     val customers = {
       val source = sc textFile s.getCustomersPath
@@ -102,7 +110,7 @@ object Project2 {
     join reduceByKey { _ + _ }
   }
 
-  def runTask2(sc: SparkContext, s: Settings) = {
+  def runTask2(sc: SparkContext, s: Settings)(implicit pattern: Pattern) = {
     // Optimised version with inner join instead of left outer join.
     // Hence, no seed of customers anymore!
 
