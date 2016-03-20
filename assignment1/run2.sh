@@ -14,7 +14,7 @@ then
         exit 1
 fi
 
-hadoop fs -rm -r -f '/user/mantogni/output/out_${1}'
+hadoop fs -rm -r -f '/user/mantogni/output/out_'$1
 
 sbt package
 
