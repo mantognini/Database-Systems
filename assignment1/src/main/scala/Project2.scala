@@ -59,7 +59,7 @@ object Project2 {
   def main(args: Array[String]): Unit = {
     // Create a Spark context using default settings
     val s    = extractSettings(args)
-    val conf = new SparkConf().setAppName("mantogni.Project2")
+    val conf = new SparkConf().setAppName(s"mantogni.Project2 <${s.task}>")
     val sc   = new SparkContext(conf)
 
     val histogram =
