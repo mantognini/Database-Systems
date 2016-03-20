@@ -45,15 +45,6 @@ object Project2 {
     def test(comment: String) = pattern.matcher(comment).matches
   }
 
-  // Extract orders's client id and its comment
-  private def extractOrders(record: String): (Int, String) = {
-    val fields  = record split '|'
-    val custkey = fields(1).toInt
-    val comment = fields(8)
-
-    (custkey, comment)
-  }
-
   // Extract normal order and start counting
   private def extractNormalOrder(record: String): Option[(Int, Int)] = {
     val fields  = record split '|'
@@ -93,14 +84,7 @@ object Project2 {
     }
 
     // Load normal orders and start counting
-    val orders = {
-      val source  = sc textFile s.getOrdersPath
-      val records = source map extractOrders
-
-      records collect { case (key, IsNormal(comment)) =>
-        (key, 1) // initial count is one
-      }
-    }
+    val orders = sc textFile s.getOrdersPath flatMap extractNormalOrder
 
     // Count the number of orders for each customer having at least one order
     val orderCount = orders reduceByKey { _ + _ }
@@ -124,7 +108,6 @@ object Project2 {
 
     // Load normal orders and start counting
     val orders = sc textFile s.getOrdersPath flatMap extractNormalOrder
-
 
     // Count the number of orders for each customer having at least one order
     val orderCount = orders reduceByKey { _ + _ }
