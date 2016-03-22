@@ -25,6 +25,27 @@ spark-submit --class "main.scala.Project2" \
         hdfs:///user/mantogni/output \
         $1
 
-hadoop fs -cat "/user/mantogni/output/out_${1}/"'*' | sort -n
+hadoop fs -cat "/user/mantogni/output/out_${1}/"'*' | sort -n | tee result.tmp.txt
 
-hadoop fs -get '/spark-history/application_*' /home/mantogni/logs/ 2>/dev/null
+if [ -f result.previous.txt ]
+then
+        set +e
+        cmp result.previous.txt result.tmp.txt
+        if [ $? -eq 0 ]
+        then
+                echo "MATCH PREVIOUS"
+        else
+                echo "DIDN'T MATCH PREVIOUS"
+        fi
+        set -e
+
+        rm result.previous.txt
+else
+        echo "WARNING: NO PREVIOUS"
+fi
+
+mv result.tmp.txt result.previous.txt
+
+hadoop fs -get '/spark-history/application_*' /home/mantogni/logs/ 2>/dev/null || true
+
+echo "SUCCESS"
