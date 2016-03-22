@@ -41,8 +41,23 @@ object Project2 {
       case false => Some(comment)
     }
 
-    val pattern = """.*special.*requests.*""".r.pattern
-    def test(comment: String) = pattern.matcher(comment).matches
+    // NOTE: regex is too slow...
+    //
+    // val pattern = """.*special.*requests.*""".r.pattern
+    // def test1(comment: String) = pattern.matcher(comment).matches
+    //
+    // def test2(comment: String) = comment.matches(".*special.*requests.*")
+
+    def test3(comment: String) = {
+      val special = "special"
+      val requests = "requests"
+
+      val s = comment.indexOf(special)
+      if (s == -1) false
+      else comment.indexOf(requests, s + special.length) != -1
+    }
+
+    def test = test3 _
   }
 
   // Extract normal order and start counting
