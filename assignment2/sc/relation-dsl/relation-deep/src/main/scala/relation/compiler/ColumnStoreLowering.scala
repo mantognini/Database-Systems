@@ -47,7 +47,11 @@ class ColumnStoreLowering(override val IR: RelationDSLOpsPackaged, override val 
   }
 
   def relationProject(relation: Rep[Relation], schema: Schema, resultSchema: Schema): LoweredRelation = {
-    ??? // TODO
+    val (size, storage) = getRelationLowered(relation)
+
+    val newStorage = storage filterKeys { resultSchema.columns contains _ }
+
+    (size, newStorage)
   }
 
   def relationSelect(relation: Rep[Relation], field: String, value: Rep[String], resultSchema: Schema): LoweredRelation = {
