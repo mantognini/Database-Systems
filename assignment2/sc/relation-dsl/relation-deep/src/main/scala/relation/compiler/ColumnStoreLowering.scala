@@ -22,11 +22,7 @@ class ColumnStoreLowering(override val IR: RelationDSLOpsPackaged, override val 
 
   def relationScan(scanner: Rep[RelationScanner], schema: Schema, size: Rep[Int], resultSchema: Schema): LoweredRelation = {
     // Create the main storage
-    val storage = (for (column <- schema.columns) yield {
-      val colStorage = dsl"new Array[String]($size)"
-
-      column -> colStorage
-    }).toMap
+    val storage = createStorage(schema.columns, size)
 
 
     // Load the records using the scanner, unrolling the inner loop (which is defined as a function)
@@ -71,11 +67,7 @@ class ColumnStoreLowering(override val IR: RelationDSLOpsPackaged, override val 
     """
 
     // Create a new storage for the filtered relation
-    val newStorage = (for (column <- schema.columns) yield {
-      val colStorage = dsl"new Array[String]($newSize)"
-
-      column -> colStorage
-    }).toMap
+    val newStorage = createStorage(schema.columns, newSize)
 
     // Load the data into the new storage, with unrolling of inner loop
     def copyRecord(source: Var[Int], dest: Var[Int]) =
@@ -98,8 +90,52 @@ class ColumnStoreLowering(override val IR: RelationDSLOpsPackaged, override val 
     (newSize, newStorage)
   }
 
-  def relationJoin(leftRelation: Rep[Relation], rightRelation: Rep[Relation], leftKey: String, rightKey: String, resultSchema: Schema): LoweredRelation = {
-    ??? // TODO
+  def relationJoin(leftRelation: Rep[Relation], rightRelation: Rep[Relation],
+                   leftKey: String, rightKey: String, resultSchema: Schema): LoweredRelation = {
+    val (sizeL, storageL) = getRelationLowered(leftRelation)
+    val (sizeR, storageR) = getRelationLowered(rightRelation)
+
+    val schemaL = getRelationSchema(leftRelation)
+    val schemaR = getRelationSchema(rightRelation)
+
+    val columnsL = schemaL.columns
+    val columnsR = schemaR.columns filter { _ != rightKey }
+
+    // Helper function to iterate on valid pairs of tuples only
+    def iterateOnProduct(f: (Rep[Int], Rep[Int]) => Rep[Unit]) =
+      dsl"""
+        for {
+          i <- 0 until $sizeL
+          j <- 0 until $sizeR
+        } {
+          if (${storageL(leftKey)}(i) == ${storageR(rightKey)}(j))
+            ${f}(i, j)
+        }
+      """
+
+    // Count the matching pairs
+    val newSize_ = newVar(dsl"0")
+    iterateOnProduct { (_, _) =>
+      dsl"$newSize_ = $newSize_ + 1"
+    }
+    val newSize = dsl"$newSize_"
+
+    // Create the output storage
+    val newStorage = createStorage(columnsL ++ columnsR, newSize)
+
+    // Copy the tuples
+    val dest = newVar(dsl"0")
+    iterateOnProduct { (i, j) =>
+      for (column <- columnsL) {
+        dsl"${newStorage(column)}($dest) = ${storageL(column)}($i)"
+      }
+      for (column <- columnsR) {
+        dsl"${newStorage(column)}($dest) = ${storageR(column)}($j)"
+      }
+      dsl"$dest = $dest + 1"
+    }
+
+    (newSize, newStorage)
   }
 
   def relationPrint(relation: Rep[Relation]): Unit = {
@@ -119,4 +155,12 @@ class ColumnStoreLowering(override val IR: RelationDSLOpsPackaged, override val 
     """
   }
 
+  private def createStorage(columns: Seq[String], size: Rep[Int]) =
+    (for (column <- columns) yield {
+      val colStorage = dsl"new Array[String]($size)"
+
+      column -> colStorage
+    }).toMap
+
 }
+
