@@ -11,7 +11,7 @@ import pardis.prettyprinter._
 import deep._
 
 class RelationCompiler(val DSL: RelationDSLOpsPackaged) extends Compiler[RelationDSLOpsPackaged] {
-  
+
   // Pipeline Definition:
   pipeline += DCE
 
@@ -22,11 +22,11 @@ class RelationCompiler(val DSL: RelationDSLOpsPackaged) extends Compiler[Relatio
   //pipeline += new ColumnStoreLowering(DSL, schemaAnalysis)
 
   pipeline += DCE
-  
-  
+
+
   // Outputting Scala code inside an executable wrapper:
-  
-  val codeGenerator = 
+
+  val codeGenerator =
       new ScalaCodeGenerator with ASTCodeGenerator[RelationDSLOpsPackaged] with ArrayScalaCodeGen {
         val IR = DSL
         override def header(): Document = s"""
@@ -41,14 +41,14 @@ class RelationCompiler(val DSL: RelationDSLOpsPackaged) extends Compiler[Relatio
       }
 
   val outputFileName: String = "GenApp"
-  
+
   def compile(program: => DSL.Rep[Unit]): Unit = {
     import DSL.Predef._
     val folder = "src/main/scala"
-    
+
     // Create the directories if it does not already exist
     new java.io.File(s"generator-out/$folder").mkdirs()
-    
+
     try compile(program, s"$folder/$outputFileName")
     catch {
       case LoweringException(msg) =>
