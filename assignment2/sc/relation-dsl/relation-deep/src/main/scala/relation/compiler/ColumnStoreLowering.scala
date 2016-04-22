@@ -24,7 +24,6 @@ class ColumnStoreLowering(override val IR: RelationDSLOpsPackaged, override val 
     // Create the main storage
     val storage = createStorage(schema.columns, size)
 
-
     // Load the records using the scanner, unrolling the inner loop (which is defined as a function)
     def loadRecord(index: Var[Int]) =
       for (column <- schema.columns) {

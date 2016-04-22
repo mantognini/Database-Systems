@@ -36,8 +36,9 @@ object Main extends App {
     projEn.print
   """
 
-  def pgrm = pgrmA
-  // def pgrm = pgrmB
+  // def pgrm = pgrmA
+  def pgrm = pgrmB
+  // def pgrm = pgrmC
 
   val compiler = new RelationCompiler(Context)
 
