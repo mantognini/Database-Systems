@@ -12,7 +12,7 @@ public class OMVCCTest1 {
             /* Example schedule:
              T1: I(1) C
              T2:        R(1) W(1)           R(1) W(1) C
-             T3:                  R(1) W(1)             C
+             T3:                  R(1) W(2)             C
             */
             long t1 = OMVCC.begin();
             OMVCC.write(t1, 1, 13); // create obj1 and initialize with 13
