@@ -25,8 +25,8 @@ object OMVCC {
 
   // returns transaction id == logical start timestamp
   def begin: Long = {
-    startAndCommitTimestampGen += 1  //SHOULD BE USED
-    transactionIdGen += 1  //SHOULD BE USED
+    startAndCommitTimestampGen += 1   // SHOULD BE USED
+    transactionIdGen += 1             // SHOULD BE USED
     transactionIdGen
   }
 
@@ -37,7 +37,7 @@ object OMVCC {
     0 // FIX THIS
   }
 
-  // return the list of values of objects whose values mod k are zero.
+  // return the list of values that are congruent modulo k with zero.
   // this is our only kind of query / bulk read.
   @throws(classOf[Exception])
   def modquery(xact: Long, k: Int): java.util.List[Integer] = {
