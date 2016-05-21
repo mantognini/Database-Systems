@@ -69,36 +69,25 @@ object OMVCC {
   // a NoSuchKeyException is thrown;
   @throws(classOf[Exception])
   def read(xact: Long, key: Int): Int = {
-    val transaction = getTransaction(xact)
+    val t = getTransaction(xact)
 
     // (1) either the key was written at least once by the given transaction,
     // (2) or it was committed by another transaction before this one began,
     // (3) or the key was never committed or written by this transaction.
 
-    transaction.readPreds += key
+    t.readPreds += key
 
-    if (transaction.undoBuffer contains key) {
+    if (t.undoBuffer contains key) {
       // (1)
-      val opt = storage(key) collectFirst {
-        case TemporaryVersion(value, owner) if owner == xact => value
-      }
-
-      // the write operation *must* have added a TemporaryVersion into the storage
-      assert(opt.isDefined)
-      opt.get
+      getTemporaryVersion(t, xact, key)
     } else {
-      // the more recent value is at the end
-      val vals = storage(key) collect {
-        case CommittedVersion(value, ts) if ts < transaction.startTimestamp => (value, ts)
-      } sortBy { _._2 }
-
-      vals match {
-        case Nil =>
+      getMostRecentReadableVersion(t, key) match {
+        case None =>
           // (3)
           rollback(xact)
           throw NoSuchKeyException(xact, key)
 
-        case vs :+ ((value, _)) =>
+        case Some(value) =>
           // (2)
           value
       }
@@ -125,7 +114,7 @@ object OMVCC {
   // if so, the xact is aborted before throwing a BadWriteException
   @throws(classOf[Exception])
   def write(xact: Long, key: Int, value: Int) {
-    val transaction = getTransaction(xact)
+    val t = getTransaction(xact)
 
     def abort(): Nothing = {
       rollback(xact)
@@ -147,7 +136,7 @@ object OMVCC {
         abort()
 
       // If there is a committed version with a more recent timestamp, we abort
-      case CommittedVersion(_, timestamp) :: _ if timestamp > transaction.startTimestamp =>
+      case CommittedVersion(_, timestamp) :: _ if timestamp > t.startTimestamp =>
         abort()
 
       // Otherwise we recurse
@@ -159,7 +148,7 @@ object OMVCC {
     val newVersions = rec(versions, Nil) // might abort in there
 
     storage += key -> newVersions
-    transaction.undoBuffer += key
+    t.undoBuffer += key
   }
 
   // attempt to commit the given xact;
@@ -198,9 +187,9 @@ object OMVCC {
   // if xact is invalid, a NoSuchXactException is thrown
   @throws(classOf[Exception])
   def rollback(xact: Long) {
-    val transaction = getTransaction(xact)
+    val t = getTransaction(xact)
 
-    for { key <- transaction.undoBuffer } {
+    for { key <- t.undoBuffer } {
       val versions = storage(key) filter {
         case TemporaryVersion(_, owner) if owner == xact => false
         case _ => true
@@ -221,7 +210,7 @@ object OMVCC {
   // transform the uncommitted versions of any written value into
   // durable committed values
   private def validate(xact: Long, commitTimestamp: Long): Unit = {
-    val transaction = getTransaction(xact)
+    val t = getTransaction(xact)
 
     @tailrec
     def rec(versions: List[Version], acc: List[Version]): List[Version] = versions match {
@@ -233,16 +222,43 @@ object OMVCC {
       case v :: vs => rec(vs, v :: acc)
     }
 
-    for { key <- transaction.undoBuffer } {
+    for { key <- t.undoBuffer } {
       val versions    = storage(key)
       val newVersions = rec(versions, Nil)
       storage += key -> newVersions
     }
 
     xacts -= xact
-    commits += transaction
+    commits += t
 
-    transaction.commitTimestamp = commitTimestamp
+    t.commitTimestamp = commitTimestamp
+  }
+
+  // read the most recent and visible version that was committed before the
+  // given transaction began, if any
+  private def getMostRecentReadableVersion(t: Transaction, key: Int): Option[Int] = {
+    val vals = storage(key) collect {
+      case CommittedVersion(value, ts) if ts < t.startTimestamp => (value, ts)
+    } sortBy { _._2 }
+
+    // the more recent value is at the end
+    vals match {
+      case Nil     => None
+      case vs :+ v => Some(v._1)
+    }
+  }
+
+  // here we assume key is in the undoBuffer of t
+  private def getTemporaryVersion(t: Transaction, xact: Long, key: Int): Int = {
+    require(t.undoBuffer contains key)
+
+    val opt = storage(key) collectFirst {
+      case TemporaryVersion(value, owner) if owner == xact => value
+    }
+
+    // the write operation *must* have added a TemporaryVersion into the storage
+    assert(opt.isDefined)
+    opt.get
   }
 }
 
