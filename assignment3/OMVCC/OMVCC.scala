@@ -15,14 +15,16 @@
 //   aborted. Keep it simple!
 // - keep the interface, we want to test automatically!
 object OMVCC {
-  import scala.collection.mutable.{ Map => MutableMap }
+  import scala.collection.mutable.{ Map => MutableMap, Set => MutableSet }
   import scala.annotation.tailrec
 
   private var startAndCommitTimestampGen: Long = 0
   private var transactionIdGen: Long = 1L << 62
 
   private case class Transaction(startTimestamp: Long) {
-    var undoBuffer: List[Int] = Nil // list of keys updated by this xact
+    val undoBuffer = MutableSet[Int]() // set of keys updated by this xact
+
+    def isReadOnly = undoBuffer.isEmpty
   }
 
   //lList of active xacts
@@ -59,8 +61,38 @@ object OMVCC {
   // a NoSuchKeyException is thrown;
   @throws(classOf[Exception])
   def read(xact: Long, key: Int): Int = {
-    /* TODO */
-    0 // FIX THIS
+    val transaction = getTransaction(xact)
+
+    // (1) either the key was written at least once by the given transaction,
+    // (2) or it was committed by another transaction before this one began,
+    // (3) or the key was never committed or written by this transaction.
+
+    if (transaction.undoBuffer contains key) {
+      // (1)
+      val opt = storage(key) collectFirst {
+        case TemporaryVersion(value, owner) if owner == xact => value
+      }
+
+      // the write operation *must* have added a TemporaryVersion into the storage
+      assert(opt.isDefined)
+      opt.get
+    } else {
+      // the more recent value is at the end
+      val vals = storage(key) collect {
+        case CommittedVersion(value, ts) if ts < transaction.startTimestamp => (value, ts)
+      } sortBy { _._2 }
+
+      vals match {
+        case Nil =>
+          // (3)
+          rollback(xact)
+          throw NoSuchKeyException(xact, key)
+
+        case vs :+ ((value, _)) =>
+          // (2)
+          value
+      }
+    }
   }
 
   // return the list of values that are congruent modulo k with zero.
@@ -117,6 +149,7 @@ object OMVCC {
     val newVersions = rec(versions, Nil) // might abort in there
 
     storage += key -> newVersions
+    transaction.undoBuffer += key
   }
 
   // attempt to commit the given xact;
