@@ -18,30 +18,38 @@ object OMVCC {
   import scala.collection.mutable.{ Map => MutableMap, Set => MutableSet }
   import scala.annotation.tailrec
 
-  private var startAndCommitTimestampGen: Long = 0
-  private var transactionIdGen: Long = 1L << 62
-
   private case class Transaction(startTimestamp: Long) {
     val undoBuffer = MutableSet[Int]() // set of keys updated by this xact
+    val readPreds  = MutableSet[Int]() // set of key
+    // TODO add predicates for modquery
+
+    var commitTimestamp: Long = -1 // unset
 
     def isReadOnly = undoBuffer.isEmpty
   }
 
-  //lList of active xacts
-  private val xacts = MutableMap[Long, Transaction]()
 
   sealed abstract class Version
   case class CommittedVersion(value: Int, timestamp: Long) extends Version
   case class TemporaryVersion(value: Int, xactOwner: Long) extends Version
-
-  // key-(value+version) storage
-  private val storage = MutableMap[Int, List[Version]]().withDefaultValue(Nil)
 
 
   case class NoSuchKeyException(xact: Long, key: Int) extends Exception
   case class BadWriteException(xact: Long, key: Int, value: Int) extends Exception
   case class BadCommitException(xact: Long) extends Exception
   case class NoSuchXactException(xact: Long) extends Exception
+
+
+  // list of active xacts
+  private val xacts = MutableMap[Long, Transaction]()
+  private val commits = MutableSet[Transaction]()
+
+  // key-(value+version) storage
+  private val storage = MutableMap[Int, List[Version]]().withDefaultValue(Nil)
+
+  private var startAndCommitTimestampGen: Long = 0
+  private var transactionIdGen: Long = 1L << 62
+
 
   // returns transaction id == logical start timestamp
   def begin: Long = {
@@ -66,6 +74,8 @@ object OMVCC {
     // (1) either the key was written at least once by the given transaction,
     // (2) or it was committed by another transaction before this one began,
     // (3) or the key was never committed or written by this transaction.
+
+    transaction.readPreds += key
 
     if (transaction.undoBuffer contains key) {
       // (1)
@@ -157,10 +167,30 @@ object OMVCC {
   // on failures, the xact is aborted and a BadCommitException is thrown
   @throws(classOf[Exception])
   def commit(xact: Long) {
-    val isValid: Boolean = false  // FIX THIS
-    /* TODO */
+    // (1) either the transaction has no write operation (read-only) and
+    //     no validation is required
+    // (2) or it has at least one write operation and
+    //     we have to make sure there is no conflict with any running transaction
+
+    val t = getTransaction(xact)
+
+    val isValid =
+      if (t.isReadOnly) true
+      else {
+        val potentialConflicts = commits filter { x => x.commitTimestamp > t.startTimestamp }
+        val readsBad = potentialConflicts exists { x => !(x.undoBuffer & t.readPreds).isEmpty }
+        // TODO pred on modquery
+        val modqueryBad = false
+
+        !(readsBad || modqueryBad)
+      }
+
     if (isValid) {
-      startAndCommitTimestampGen += 1 //SHOULD BE USED
+      startAndCommitTimestampGen += 1 // SHOULD BE USED
+      validate(xact, startAndCommitTimestampGen)
+    } else {
+      rollback(xact)
+      throw BadCommitException(xact)
     }
   }
 
@@ -168,12 +198,51 @@ object OMVCC {
   // if xact is invalid, a NoSuchXactException is thrown
   @throws(classOf[Exception])
   def rollback(xact: Long) {
-    /* TODO */
+    val transaction = getTransaction(xact)
+
+    for { key <- transaction.undoBuffer } {
+      val versions = storage(key) filter {
+        case TemporaryVersion(_, owner) if owner == xact => false
+        case _ => true
+      }
+
+      storage += key -> versions
+    }
+
+    xacts -= xact
   }
 
   // return the Transaction corresponding to the given xact if any,
   // throw a NoSuchXactException if none exists
-  private def getTransaction(xact: Long) =
+  private def getTransaction(xact: Long): Transaction =
     xacts get xact getOrElse { throw NoSuchXactException(xact) }
+
+  // assuming the given transaction passes the checks in commit,
+  // transform the uncommitted versions of any written value into
+  // durable committed values
+  private def validate(xact: Long, commitTimestamp: Long): Unit = {
+    val transaction = getTransaction(xact)
+
+    @tailrec
+    def rec(versions: List[Version], acc: List[Version]): List[Version] = versions match {
+      case TemporaryVersion(value, owner) :: vs if owner == xact =>
+        val newV = CommittedVersion(value, commitTimestamp)
+        rec(vs, newV :: acc)
+
+      case Nil => acc
+      case v :: vs => rec(vs, v :: acc)
+    }
+
+    for { key <- transaction.undoBuffer } {
+      val versions    = storage(key)
+      val newVersions = rec(versions, Nil)
+      storage += key -> newVersions
+    }
+
+    xacts -= xact
+    commits += transaction
+
+    transaction.commitTimestamp = commitTimestamp
+  }
 }
 
