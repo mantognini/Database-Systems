@@ -19,9 +19,9 @@ object OMVCC {
   import scala.annotation.tailrec
 
   private case class Transaction(startTimestamp: Long) {
-    val undoBuffer = MutableSet[Int]() // set of keys updated by this xact
-    val readPreds  = MutableSet[Int]() // set of key
-    // TODO add predicates for modquery
+    val undoBuffer    = MutableSet[Int]() // set of keys updated by this xact
+    val readPreds     = MutableSet[Int]() // set of key
+    val modqueryPreds = MutableSet[(Int, Int, Boolean)]() // (key, modulus, congruent?)
 
     var commitTimestamp: Long = -1 // unset
 
@@ -99,8 +99,27 @@ object OMVCC {
   // if xact is invalid, a NoSuchXactException is thrown
   @throws(classOf[Exception])
   def modquery(xact: Long, k: Int): java.util.List[Integer] = {
+    val t = getTransaction(xact)
+
     val l = new java.util.ArrayList[Integer]
-    /* TODO */
+
+    def process(key: Int, value: Int): Unit =
+      if (value % k == 0) {
+        l add value
+        t.modqueryPreds += ((key, k, true))
+      } else {
+        t.modqueryPreds += ((key, k, false))
+      }
+
+    for { key <- storage.keys } {
+      if (t.undoBuffer contains key) {
+        val value = getTemporaryVersion(t, xact, key)
+        process(key, value)
+      } else {
+        getMostRecentReadableVersion(t, key) foreach { process(key, _) }
+      }
+    }
+
     l
   }
 
@@ -168,8 +187,20 @@ object OMVCC {
       else {
         val potentialConflicts = commits filter { x => x.commitTimestamp > t.startTimestamp }
         val readsBad = potentialConflicts exists { x => !(x.undoBuffer & t.readPreds).isEmpty }
-        // TODO pred on modquery
-        val modqueryBad = false
+        val modqueryBad = potentialConflicts exists { x =>
+          x.undoBuffer exists { key =>
+            val opt = t.modqueryPreds find {
+              case (key2, _, _) if key == key2 => true
+              case _                           => false
+            }
+            opt match {
+              case None => false
+              case Some((_, modulus, congruent)) =>
+                val pcv = findVersion(x.commitTimestamp, key) // potentially conflicting value
+                (pcv % modulus == 0) != congruent
+            }
+          }
+        }
 
         !(readsBad || modqueryBad)
       }
@@ -192,7 +223,7 @@ object OMVCC {
     for { key <- t.undoBuffer } {
       val versions = storage(key) filter {
         case TemporaryVersion(_, owner) if owner == xact => false
-        case _ => true
+        case _                                           => true
       }
 
       storage += key -> versions
@@ -218,7 +249,7 @@ object OMVCC {
         val newV = CommittedVersion(value, commitTimestamp)
         rec(vs, newV :: acc)
 
-      case Nil => acc
+      case Nil     => acc
       case v :: vs => rec(vs, v :: acc)
     }
 
@@ -257,6 +288,16 @@ object OMVCC {
     }
 
     // the write operation *must* have added a TemporaryVersion into the storage
+    assert(opt.isDefined)
+    opt.get
+  }
+
+  // Find the value associated with the given key and committed at the given time
+  private def findVersion(commitTimestamp: Long, key: Int): Int = {
+    val opt = storage(key) collectFirst {
+      case CommittedVersion(value, ts) if ts == commitTimestamp => value
+    }
+
     assert(opt.isDefined)
     opt.get
   }
