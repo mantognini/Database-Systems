@@ -37,7 +37,12 @@ public class OMVCCTest2 {
                 case 4: test4(); break;
                 case 5: test5(); break;
                 case 6: test6(); break;
+                case 7: test7(); break;
+                case 8: test8(); break;
+                case 9: test9(); break;
+                default: throw new AssertionError("Unknown test " + TEST);
             }
+            // System.out.print(buffer.toString());
         } catch (Exception e) {
             System.out.print(buffer.toString());
             e.printStackTrace();
@@ -327,6 +332,96 @@ public class OMVCCTest2 {
 
         executeSchedule(schedule, expectedResults, maxLen);
     }
+
+    private static void test7() {
+        log.println("----------- Test 7 -----------");
+
+        int[][][] schedule = new int[][][]{
+            // t      1    2    3    4    5    6    7    8    9    10
+            /*T1:*/ {W(1),W(2),__C_                                   },
+            /*T2:*/ {____,____,____,M(9),____,____,____,____,W(3),__C_},
+            /*T3:*/ {____,____,____,____,W(4),____,____,__C_          },
+            /*T4:*/ {____,____,____,____,____,W(5),__C_               },
+        };
+
+        int maxLen = analyzeSchedule(schedule);
+        printSchedule(schedule);
+        Object[][][] expectedResults = new Object[schedule.length][maxLen][];
+
+        expectedResults[T(1)][STEP(1)] = VALID; // 4
+        expectedResults[T(1)][STEP(2)] = VALID; // 6
+        expectedResults[T(1)][STEP(3)] = VALID;
+        expectedResults[T(2)][STEP(4)] = RESULT();
+        expectedResults[T(3)][STEP(5)] = VALID; // 12
+        expectedResults[T(4)][STEP(6)] = VALID; // 14
+        expectedResults[T(4)][STEP(7)] = VALID;
+        expectedResults[T(3)][STEP(8)] = VALID;
+        expectedResults[T(2)][STEP(9)] = VALID; // 20
+        expectedResults[T(2)][STEP(10)] = VALID;
+
+        executeSchedule(schedule, expectedResults, maxLen);
+    }
+
+    private static void test8() {
+        log.println("----------- Test 8 -----------");
+
+        int[][][] schedule = new int[][][]{
+            // t      1    2    3    4    5    6    7    8    9    10   11
+            /*T1:*/ {W(1),W(2),__C_                                        },
+            /*T2:*/ {____,____,____,M(9),____,____,____,____,M(2),W(3),__C_},
+            /*T3:*/ {____,____,____,____,W(4),____,____,__C_               },
+            /*T4:*/ {____,____,____,____,____,W(5),__C_                    },
+        };
+
+        int maxLen = analyzeSchedule(schedule);
+        printSchedule(schedule);
+        Object[][][] expectedResults = new Object[schedule.length][maxLen][];
+
+        expectedResults[T(1)][STEP(1)] = VALID; // 4
+        expectedResults[T(1)][STEP(2)] = VALID; // 6
+        expectedResults[T(1)][STEP(3)] = VALID;
+        expectedResults[T(2)][STEP(4)] = RESULT();
+        expectedResults[T(3)][STEP(5)] = VALID; // 12
+        expectedResults[T(4)][STEP(6)] = VALID; // 14
+        expectedResults[T(4)][STEP(7)] = VALID;
+        expectedResults[T(3)][STEP(8)] = VALID;
+        expectedResults[T(2)][STEP(9)] = RESULT(STEP(1),STEP(2));
+        expectedResults[T(2)][STEP(10)] = VALID; // 22
+        expectedResults[T(2)][STEP(11)] = ROLLBACK;
+
+        executeSchedule(schedule, expectedResults, maxLen);
+    }
+
+    private static void test9() {
+        log.println("----------- Test 9 -----------");
+
+        int[][][] schedule = new int[][][]{
+            // t      1    2    3    4    5    6    7    8    9    10   11
+            /*T1:*/ {W(1),W(2),__C_                                        },
+            /*T2:*/ {____,____,____,M(9),____,____,____,____,M(9),W(3),__C_},
+            /*T3:*/ {____,____,____,____,W(4),____,____,__C_               },
+            /*T4:*/ {____,____,____,____,____,W(5),__C_                    },
+        };
+
+        int maxLen = analyzeSchedule(schedule);
+        printSchedule(schedule);
+        Object[][][] expectedResults = new Object[schedule.length][maxLen][];
+
+        expectedResults[T(1)][STEP(1)] = VALID; // 4
+        expectedResults[T(1)][STEP(2)] = VALID; // 6
+        expectedResults[T(1)][STEP(3)] = VALID;
+        expectedResults[T(2)][STEP(4)] = RESULT();
+        expectedResults[T(3)][STEP(5)] = VALID; // 12
+        expectedResults[T(4)][STEP(6)] = VALID; // 14
+        expectedResults[T(4)][STEP(7)] = VALID;
+        expectedResults[T(3)][STEP(8)] = VALID;
+        expectedResults[T(2)][STEP(9)] = RESULT();
+        expectedResults[T(2)][STEP(10)] = VALID; // 22
+        expectedResults[T(2)][STEP(11)] = VALID;
+
+        executeSchedule(schedule, expectedResults, maxLen);
+    }
+
 
     /**
      * This method is for executing a schedule.
