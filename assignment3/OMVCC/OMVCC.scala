@@ -50,6 +50,10 @@ object OMVCC {
   private var startAndCommitTimestampGen: Long = 0
   private var transactionIdGen: Long = 1L << 62
 
+  def log(s: String): Unit = {
+    // println(s)
+  }
+
 
   // returns transaction id == logical start timestamp
   def begin: Long = {
@@ -59,6 +63,8 @@ object OMVCC {
     val xact = transactionIdGen
 
     xacts += xact -> Transaction(startAndCommitTimestampGen)
+
+    log(s"begin of ${xacts(xact)}\n")
 
     xact
   }
@@ -105,7 +111,6 @@ object OMVCC {
 
     def process(key: Int, value: Int): Unit = {
       if (value % k == 0) l add value
-      t.readPreds += key
     }
 
     for { key <- storage.keys } {
@@ -181,22 +186,66 @@ object OMVCC {
 
     val t = getTransaction(xact)
 
+    log(s"commit of $t")
+
     val isValid =
       if (t.isReadOnly) true
       else {
+        log(s"commits = $commits")
         val potentialConflicts = commits filter { x => x.commitTimestamp > t.startTimestamp }
+        log(s"potentialConflicts = $potentialConflicts")
 
-        val readsBad = potentialConflicts exists { x => !(x.undoBuffer & t.readPreds).isEmpty }
-
-        val modqueryBad = potentialConflicts exists { x =>
-          x.undoBuffer exists { key =>
-            val pcv = findVersion(x.commitTimestamp, key) // potentially conflicting value
-            t.modqueryPreds exists { modulus => pcv % modulus == 0 }
-          }
+        val readsBad = potentialConflicts exists { x =>
+          if (!(x.undoBuffer & t.readPreds).isEmpty) {
+            log(s"\t$x is in conflict with $t because of ${x.undoBuffer} & ${t.readPreds} = ${x.undoBuffer & t.readPreds}")
+            true
+          } else false
         }
+        log(s"readsBad = $readsBad")
+
+        log(s"modquery validation...")
+        val modqueryBad = potentialConflicts exists { x =>
+          log(s"\texamining $x w/ undoBuffer = ${x.undoBuffer}")
+          t.modqueryPreds exists { modulus =>
+            log(s"\t\tconsidering predicate modquery($modulus) on new value")
+            val newValueMatches = x.undoBuffer exists { key =>
+              val pcv = findVersion(x.commitTimestamp, key) // potentially conflicing value
+              log(s"\t\t\tkey = $key -> $pcv % modulus == ${pcv % modulus}")
+              pcv % modulus == 0
+            }
+
+            log(s"\t\tconsidering predicate modquery($modulus) on new previous value")
+            val previousValueMatches = x.undoBuffer exists { key =>
+              val prevVersions = storage(key) collect {
+                case CommittedVersion(value, ts) if ts < x.commitTimestamp => (value, ts)
+              } sortBy { _._2 }
+              prevVersions.lastOption exists { case (pcv, _) =>
+                log(s"\t\t\tkey = $key -> $pcv % $modulus == ${pcv % modulus}")
+                pcv % modulus == 0
+              }
+            }
+
+            newValueMatches || previousValueMatches
+          }
+          /*
+           * x.undoBuffer exists { key =>
+           *   val pcv = findVersion(x.commitTimestamp, key) // potentially conflicting value
+           *   log(s"\t\tfor key $key, pcv = $pcv")
+           *   t.modqueryPreds exists { modulus =>
+           *     if (pcv % modulus == 0) {
+           *       log(s"\t\t\t$pcv % $modulus == 0")
+           *       true
+           *     } else false
+           *   }
+           * }
+           */
+        }
+        log(s"modqueryBad = $modqueryBad")
 
         !(readsBad || modqueryBad)
       }
+
+    log(s"-> valid? $isValid\n")
 
     if (isValid) {
       startAndCommitTimestampGen += 1 // SHOULD BE USED
