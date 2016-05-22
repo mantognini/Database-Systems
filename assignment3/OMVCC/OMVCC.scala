@@ -21,7 +21,7 @@ object OMVCC {
   private case class Transaction(startTimestamp: Long) {
     val undoBuffer    = MutableSet[Int]() // set of keys updated by this xact
     val readPreds     = MutableSet[Int]() // set of key
-    val modqueryPreds = MutableSet[(Int, Int, Boolean)]() // (key, modulus, congruent?)
+    val modqueryPreds = MutableSet[Int]() // set of modulus
 
     var commitTimestamp: Long = -1 // unset
 
@@ -104,12 +104,7 @@ object OMVCC {
     val l = new java.util.ArrayList[Integer]
 
     def process(key: Int, value: Int): Unit =
-      if (value % k == 0) {
-        l add value
-        t.modqueryPreds += ((key, k, true))
-      } else {
-        t.modqueryPreds += ((key, k, false))
-      }
+      if (value % k == 0) l add value
 
     for { key <- storage.keys } {
       if (t.undoBuffer contains key) {
@@ -119,6 +114,8 @@ object OMVCC {
         getMostRecentReadableVersion(t, key) foreach { process(key, _) }
       }
     }
+
+    t.modqueryPreds += k
 
     l
   }
@@ -186,19 +183,13 @@ object OMVCC {
       if (t.isReadOnly) true
       else {
         val potentialConflicts = commits filter { x => x.commitTimestamp > t.startTimestamp }
+
         val readsBad = potentialConflicts exists { x => !(x.undoBuffer & t.readPreds).isEmpty }
+
         val modqueryBad = potentialConflicts exists { x =>
           x.undoBuffer exists { key =>
-            val opt = t.modqueryPreds find {
-              case (key2, _, _) if key == key2 => true
-              case _                           => false
-            }
-            opt match {
-              case None => false
-              case Some((_, modulus, congruent)) =>
-                val pcv = findVersion(x.commitTimestamp, key) // potentially conflicting value
-                (pcv % modulus == 0) != congruent
-            }
+            val pcv = findVersion(x.commitTimestamp, key) // potentially conflicting value
+            t.modqueryPreds exists { modulus => pcv % modulus == 0 }
           }
         }
 
