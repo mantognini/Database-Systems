@@ -37,8 +37,8 @@ else
         java -ea -cp ./classes OMVCCTest1
 end
 
-# RUN TEST 2, with subtests 1 - 11
-for TEST in (seq 11)
+# RUN TEST 2, with subtests 1 - 15
+for TEST in (seq 15)
         if [ $countScala != 0 ]
                 java -cp $SCALA_HOME/lib/scala-library.jar:./classes OMVCCTest2 $TEST
                 # java -cp $SCALA_HOME/lib/scala-library.jar:./classes OMVCCTest2 $TEST > /dev/null 2>&1

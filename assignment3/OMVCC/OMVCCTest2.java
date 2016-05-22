@@ -42,6 +42,10 @@ public class OMVCCTest2 {
                 case 9: test9(); break;
                 case 10: test10(); break;
                 case 11: test11(); break;
+                case 12: test12(); break;
+                case 13: test13(); break;
+                case 14: test14(); break;
+                case 15: test15(); break;
                 default: throw new AssertionError("Unknown test " + TEST);
             }
             // System.out.print(buffer.toString());
@@ -490,6 +494,117 @@ public class OMVCCTest2 {
 
         executeSchedule(schedule, expectedResults, maxLen);
     }
+
+    private static void test12() {
+        log.println("----------- Test 12 -----------");
+
+        int[][][] schedule = new int[][][]{
+            // t         1       2    3      4      5     6     7
+            /*T1:*/ {W2(1,100),__C_                                },
+            /*T2:*/ {  ____   ,____,M(2),  ____  ,____,W2(2,1),__C_},
+            /*T3:*/ {  ____   ,____,____,W2(1,99),__C_             },
+        };
+
+        int maxLen = analyzeSchedule(schedule);
+        printSchedule(schedule);
+        Object[][][] expectedResults = new Object[schedule.length][maxLen][];
+
+        expectedResults[T(1)][STEP(1)] = VALID;
+        expectedResults[T(1)][STEP(2)] = VALID;
+        expectedResults[T(2)][STEP(3)] = RESULT(100);
+        expectedResults[T(3)][STEP(4)] = VALID;
+        expectedResults[T(3)][STEP(5)] = VALID;
+        expectedResults[T(2)][STEP(6)] = VALID;
+        expectedResults[T(2)][STEP(7)] = ROLLBACK;
+
+        executeSchedule(schedule, expectedResults, maxLen);
+    }
+
+    private static void test13() {
+        log.println("----------- Test 13 -----------");
+
+        int[][][] schedule = new int[][][]{
+            // t         1       2    3      4      5     6     7       8     9
+            /*T1:*/ {W2(1,100),__C_                                              },
+            /*T2:*/ {  ____   ,____,M(2),  ____  ,____,  ____  ,____,W2(2,0),__C_},
+            /*T3:*/ {  ____   ,____,____,W2(1,98),__C_                           },
+            /*T4:*/ {  ____   ,____,____,  ____  ,____,W2(1,97),__C_             },
+        };
+
+        int maxLen = analyzeSchedule(schedule);
+        printSchedule(schedule);
+        Object[][][] expectedResults = new Object[schedule.length][maxLen][];
+
+        expectedResults[T(1)][STEP(1)] = VALID;
+        expectedResults[T(1)][STEP(2)] = VALID;
+        expectedResults[T(2)][STEP(3)] = RESULT(100);
+        expectedResults[T(3)][STEP(4)] = VALID;
+        expectedResults[T(3)][STEP(5)] = VALID;
+        expectedResults[T(4)][STEP(6)] = VALID;
+        expectedResults[T(4)][STEP(7)] = VALID;
+        expectedResults[T(2)][STEP(8)] = VALID;
+        expectedResults[T(2)][STEP(9)] = ROLLBACK;
+
+        executeSchedule(schedule, expectedResults, maxLen);
+    }
+
+    private static void test14() {
+        log.println("----------- Test 14 -----------");
+
+        int[][][] schedule = new int[][][]{
+            // t         1       2    3      4      5     6     7       8     9
+            /*T1:*/ {W2(1,101),__C_                                              },
+            /*T2:*/ {  ____   ,____,M(2),  ____  ,____,  ____  ,____,W2(2,0),__C_},
+            /*T3:*/ {  ____   ,____,____,W2(1,98),__C_                           },
+            /*T4:*/ {  ____   ,____,____,  ____  ,____,W2(1,97),__C_             },
+        };
+
+        int maxLen = analyzeSchedule(schedule);
+        printSchedule(schedule);
+        Object[][][] expectedResults = new Object[schedule.length][maxLen][];
+
+        expectedResults[T(1)][STEP(1)] = VALID;
+        expectedResults[T(1)][STEP(2)] = VALID;
+        expectedResults[T(2)][STEP(3)] = RESULT();
+        expectedResults[T(3)][STEP(4)] = VALID;
+        expectedResults[T(3)][STEP(5)] = VALID;
+        expectedResults[T(4)][STEP(6)] = VALID;
+        expectedResults[T(4)][STEP(7)] = VALID;
+        expectedResults[T(2)][STEP(8)] = VALID;
+        expectedResults[T(2)][STEP(9)] = ROLLBACK;
+
+        executeSchedule(schedule, expectedResults, maxLen);
+    }
+
+    private static void test15() {
+        log.println("----------- Test 15 -----------");
+
+        int[][][] schedule = new int[][][]{
+            // t         1       2    3      4      5     6     7       8     9
+            /*T1:*/ {W2(1,101),__C_                                              },
+            /*T2:*/ {  ____   ,____,M(2),  ____  ,____,  ____  ,____,W2(2,0),__C_},
+            /*T3:*/ {  ____   ,____,____,W2(1,99),__C_                           },
+            /*T4:*/ {  ____   ,____,____,  ____  ,____,W2(1,98),__C_             },
+        };
+
+        int maxLen = analyzeSchedule(schedule);
+        printSchedule(schedule);
+        Object[][][] expectedResults = new Object[schedule.length][maxLen][];
+
+        expectedResults[T(1)][STEP(1)] = VALID;
+        expectedResults[T(1)][STEP(2)] = VALID;
+        expectedResults[T(2)][STEP(3)] = RESULT();
+        expectedResults[T(3)][STEP(4)] = VALID;
+        expectedResults[T(3)][STEP(5)] = VALID;
+        expectedResults[T(4)][STEP(6)] = VALID;
+        expectedResults[T(4)][STEP(7)] = VALID;
+        expectedResults[T(2)][STEP(8)] = VALID;
+        expectedResults[T(2)][STEP(9)] = ROLLBACK;
+
+        executeSchedule(schedule, expectedResults, maxLen);
+    }
+
+
 
 
     /**
