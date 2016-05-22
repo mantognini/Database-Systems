@@ -41,6 +41,7 @@ public class OMVCCTest2 {
                 case 8: test8(); break;
                 case 9: test9(); break;
                 case 10: test10(); break;
+                case 11: test11(); break;
                 default: throw new AssertionError("Unknown test " + TEST);
             }
             // System.out.print(buffer.toString());
@@ -460,7 +461,32 @@ public class OMVCCTest2 {
         expectedResults[T(8)][STEP(16)] = RESULT(100);
         expectedResults[T(7)][STEP(17)] = VALID;
         expectedResults[T(8)][STEP(18)] = VALID;
-        expectedResults[T(8)][STEP(19)] = VALID;
+        expectedResults[T(8)][STEP(19)] = ROLLBACK;
+
+        executeSchedule(schedule, expectedResults, maxLen);
+    }
+
+    private static void test11() {
+        log.println("----------- Test 11 -----------");
+
+        int[][][] schedule = new int[][][]{
+            // t        1       2     3       4      5     6    7
+            /*T1:*/ {W2(1,100),__C_                                },
+            /*T2:*/ {  ____   ,____,W2(1,99),____,  ____ ,__C_     },
+            /*T3:*/ {  ____   ,____,  ____  ,M(2),W2(2,0),____,__C_},
+        };
+
+        int maxLen = analyzeSchedule(schedule);
+        printSchedule(schedule);
+        Object[][][] expectedResults = new Object[schedule.length][maxLen][];
+
+        expectedResults[T(1)][STEP(1)] = VALID;
+        expectedResults[T(1)][STEP(2)] = VALID;
+        expectedResults[T(2)][STEP(3)] = VALID;
+        expectedResults[T(3)][STEP(4)] = RESULT(100);
+        expectedResults[T(3)][STEP(5)] = VALID;
+        expectedResults[T(2)][STEP(6)] = VALID;
+        expectedResults[T(3)][STEP(7)] = ROLLBACK;
 
         executeSchedule(schedule, expectedResults, maxLen);
     }
