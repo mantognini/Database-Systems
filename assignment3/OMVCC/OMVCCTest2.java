@@ -1,4 +1,4 @@
-import java.io.PrintStream;
+import java.io.*;
 import java.util.*;
 
 /**
@@ -10,11 +10,15 @@ import java.util.*;
  *
  * @author Mohammad Dashti (mohammad.dashti@epfl.ch)
  *
+ * @author Marco Antognini
+ *   -- significant change were made to have a ROBUST testing suite
+ *
  */
 public class OMVCCTest2 {
 
     private static boolean ENABLE_COMMAND_LOGGING = true;
-    private static PrintStream log = System.out;
+    private static ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+    private static PrintStream log = new PrintStream(buffer);
 
     public static void main(String[] args) {
         // # of test to execute
@@ -31,8 +35,11 @@ public class OMVCCTest2 {
                 case 2: test2(); break;
                 case 3: test3(); break;
                 case 4: test4(); break;
+                case 5: test5(); break;
+                case 6: test6(); break;
             }
         } catch (Exception e) {
+            System.out.print(buffer.toString());
             e.printStackTrace();
             System.exit(-1);
         }
@@ -77,11 +84,20 @@ public class OMVCCTest2 {
         int maxLen = analyzeSchedule(schedule);
         printSchedule(schedule);
         Object[][][] expectedResults = new Object[schedule.length][maxLen][];
+        expectedResults[T(1)][STEP(1)] = VALID;
+        expectedResults[T(1)][STEP(2)] = VALID;
+        expectedResults[T(1)][STEP(3)] = VALID;
         expectedResults[T(2)][STEP(4)] = RESULT(STEP(2));
+        expectedResults[T(2)][STEP(5)] = VALID;
         expectedResults[T(3)][STEP(6)] = RESULT(STEP(2));
+        expectedResults[T(3)][STEP(7)] = ROLLBACK;
+        // no step(8) since rollback
         expectedResults[T(2)][STEP(9)] = RESULT(STEP(1));
+        expectedResults[T(2)][STEP(10)] = VALID;
+        expectedResults[T(2)][STEP(11)] = VALID;
         expectedResults[T(4)][STEP(12)] = RESULT(STEP(5));
         expectedResults[T(4)][STEP(13)] = RESULT(STEP(10));
+        expectedResults[T(4)][STEP(14)] = VALID;
         executeSchedule(schedule, expectedResults, maxLen);
     }
 
@@ -123,11 +139,19 @@ public class OMVCCTest2 {
         int maxLen = analyzeSchedule(schedule);
         printSchedule(schedule);
         Object[][][] expectedResults = new Object[schedule.length][maxLen][];
+        expectedResults[T(1)][STEP(1)] = VALID;
+        expectedResults[T(1)][STEP(2)] = VALID;
+        expectedResults[T(1)][STEP(3)] = VALID;
         expectedResults[T(2)][STEP(4)] = RESULT(STEP(2));
         expectedResults[T(3)][STEP(5)] = RESULT(STEP(2));
+        expectedResults[T(3)][STEP(6)] = VALID;
         expectedResults[T(2)][STEP(7)] = RESULT(STEP(2));
+        expectedResults[T(2)][STEP(8)] = VALID;
+        expectedResults[T(2)][STEP(9)] = VALID;
+        expectedResults[T(3)][STEP(10)] = VALID;
         expectedResults[T(4)][STEP(11)] = RESULT(STEP(6));
         expectedResults[T(4)][STEP(12)] = RESULT(STEP(8));
+        expectedResults[T(4)][STEP(13)] = VALID;
         executeSchedule(schedule, expectedResults, maxLen);
     }
 
@@ -167,8 +191,15 @@ public class OMVCCTest2 {
         int maxLen = analyzeSchedule(schedule);
         printSchedule(schedule);
         Object[][][] expectedResults = new Object[schedule.length][maxLen][];
+        expectedResults[T(1)][STEP(1)] = VALID;
+        expectedResults[T(2)][STEP(2)] = ROLLBACK;
+        expectedResults[T(3)][STEP(5)] = VALID;
+        expectedResults[T(1)][STEP(6)] = VALID;
+        expectedResults[T(1)][STEP(7)] = VALID;
+        expectedResults[T(3)][STEP(8)] = ROLLBACK;
         expectedResults[T(4)][STEP(10)] = RESULT(STEP(1));
         expectedResults[T(4)][STEP(11)] = RESULT(STEP(6));
+        expectedResults[T(4)][STEP(12)] = VALID;
         executeSchedule(schedule, expectedResults, maxLen);
     }
 
@@ -214,13 +245,86 @@ public class OMVCCTest2 {
         int maxLen = analyzeSchedule(schedule);
         printSchedule(schedule);
         Object[][][] expectedResults = new Object[schedule.length][maxLen][];
+        expectedResults[T(1)][STEP(1)] = VALID;
+        expectedResults[T(1)][STEP(2)] = VALID;
+        expectedResults[T(1)][STEP(3)] = VALID;
+        expectedResults[T(1)][STEP(4)] = VALID;
         expectedResults[T(2)][STEP(5)] = RESULT(STEP(3));
+        expectedResults[T(2)][STEP(6)] = VALID;
+        expectedResults[T(2)][STEP(7)] = VALID;
         expectedResults[T(3)][STEP(8)] = RESULT(STEP(3));
         expectedResults[T(3)][STEP(9)] = RESULT(STEP(1),STEP(3));
+        expectedResults[T(3)][STEP(10)] = VALID;
         expectedResults[T(2)][STEP(11)] = RESULT(STEP(7));
+        expectedResults[T(2)][STEP(12)] = VALID;
+        expectedResults[T(2)][STEP(13)] = VALID;
+        expectedResults[T(3)][STEP(14)] = ROLLBACK;
         expectedResults[T(4)][STEP(15)] = RESULT(STEP(7));
         expectedResults[T(4)][STEP(16)] = RESULT(STEP(2));
+        expectedResults[T(4)][STEP(17)] = VALID;
         expectedResults[T(4)][STEP(18)] = RESULT(STEP(17));
+        expectedResults[T(4)][STEP(19)] = VALID;
+        executeSchedule(schedule, expectedResults, maxLen);
+    }
+
+    private static void test5(){
+        log.println("----------- Test 5 -----------");
+
+        int[][][] schedule = new int[][][]{
+        //        1    2    3    4     5    6    7   8    9    10   11  12   13   14   15   16
+        /*T1:*/ {W(3),W(1),____,W(2),____,__C_                                                  },
+        /*T2:*/ {____,____,____,____,W(9),____,____,____ ,____,____,W(9),__C_                    },
+        /*T3:*/ {____,____,____,____,____,____,____,____ ,W(8),__C_                              },
+        /*T4:*/ {____,____,____,____,____,____,____,____ ,____,____,____,____,____,R(1),R(3),__C_},
+        /*T5:*/ {____,____,____,____,____,____,M(2),W(10),____,____,____,____,__C_              },
+        };
+
+        int maxLen = analyzeSchedule(schedule);
+        printSchedule(schedule);
+        Object[][][] expectedResults = new Object[schedule.length][maxLen][];
+        expectedResults[T(1)][STEP(1)] = VALID;
+        expectedResults[T(1)][STEP(2)] = VALID;
+        expectedResults[T(1)][STEP(4)] = VALID;
+        expectedResults[T(2)][STEP(5)] = VALID;
+        expectedResults[T(1)][STEP(6)] = VALID;
+        expectedResults[T(5)][STEP(7)] = RESULT(STEP(1),STEP(2),STEP(4));
+        expectedResults[T(5)][STEP(8)] = VALID;
+        expectedResults[T(3)][STEP(9)] = VALID;
+        expectedResults[T(3)][STEP(10)] = VALID;
+        expectedResults[T(2)][STEP(11)] = VALID;
+        expectedResults[T(2)][STEP(12)] = VALID;
+        expectedResults[T(5)][STEP(13)] = ROLLBACK;
+        expectedResults[T(4)][STEP(14)] = RESULT(STEP(2));
+        expectedResults[T(4)][STEP(15)] = RESULT(STEP(1));
+        expectedResults[T(4)][STEP(16)] = VALID;
+        executeSchedule(schedule, expectedResults, maxLen);
+    }
+
+    private static void test6() {
+        log.println("----------- Test 6 -----------");
+
+        int[][][] schedule = new int[][][]{
+            // t      1    2    3    4    5    6    7    8    9    10
+            /*T1:*/ {W(1),W(2),__C_                                   },
+            /*T2:*/ {____,____,____,M(2),M(4),____,____,____,W(3),__C_},
+            /*T3:*/ {____,____,____,____,____,W(4),W(5),__C_          },
+        };
+
+        int maxLen = analyzeSchedule(schedule);
+        printSchedule(schedule);
+        Object[][][] expectedResults = new Object[schedule.length][maxLen][];
+
+        expectedResults[T(1)][STEP(1)] = VALID;
+        expectedResults[T(1)][STEP(2)] = VALID;
+        expectedResults[T(1)][STEP(3)] = VALID;
+        expectedResults[T(2)][STEP(4)] = RESULT(STEP(1),STEP(2));
+        expectedResults[T(2)][STEP(5)] = RESULT(STEP(1));
+        expectedResults[T(3)][STEP(6)] = VALID;
+        expectedResults[T(3)][STEP(7)] = VALID;
+        expectedResults[T(3)][STEP(8)] = VALID;
+        expectedResults[T(2)][STEP(9)] = VALID;
+        expectedResults[T(2)][STEP(10)] = ROLLBACK;
+
         executeSchedule(schedule, expectedResults, maxLen);
     }
 
@@ -260,7 +364,32 @@ public class OMVCCTest2 {
                             switch(xactOps[0]) {
                                 case COMMIT: {
                                     logCommand(String.format("T(%d):C", xactLabel));
-                                    OMVCC.commit(xact);
+
+                                    if (expectedResults[T(xactLabel)][step] == null)
+                                        throw new AssertionError("expected commit status for "
+                                                                 + "T(" + xactLabel + ") in step " + (step+1));
+
+                                    Object expectedRes = expectedResults[T(xactLabel)][step];
+
+                                    if (expectedRes != VALID && expectedRes != ROLLBACK)
+                                        throw new AssertionError("expected correct commit status "
+                                                                 + "for T(" + xactLabel + ") in step " + (step+1));
+
+                                    expectedResults[T(xactLabel)][step] = null;
+
+                                    try {
+                                        OMVCC.commit(xact);
+                                        if (expectedRes == ROLLBACK) throw new CommitFailedException(xactLabel, step, false);
+                                        // else logCommand("commit succeeded as expected");
+                                    } catch (CommitFailedException e) {
+                                        throw e;
+                                    } catch (Exception e) {
+                                        if (expectedRes == VALID) throw new CommitFailedException(xactLabel, step, true);
+                                        else {
+                                            logCommand("commit failed as expected");
+                                            throw e;
+                                        }
+                                    }
                                     break;
                                 }
                                 case ABORT: {
@@ -275,7 +404,33 @@ public class OMVCCTest2 {
                                 case WRITE: {
                                     int value = getValue(step);
                                     logCommand(String.format("T(%d):W(%d,%d)", xactLabel, key, value));
-                                    OMVCC.write(xact, key, value);
+
+                                    if (expectedResults[T(xactLabel)][step] == null)
+                                        throw new AssertionError("expected write status for "
+                                                                 + "T(" + xactLabel + ") in step " + (step+1));
+
+                                    Object expectedRes = expectedResults[T(xactLabel)][step];
+
+                                    if (expectedRes != VALID && expectedRes != ROLLBACK)
+                                        throw new AssertionError("expected correct write status "
+                                                                 + "for T(" + xactLabel + ") in step " + (step+1));
+
+                                    expectedResults[T(xactLabel)][step] = null;
+
+                                    try {
+                                        OMVCC.write(xact, key, value);
+                                        if (expectedRes == ROLLBACK) throw new BadWriteException(xactLabel, step, false);
+                                        // else logCommand("write succeeded as expected");
+                                    } catch (BadWriteException e) {
+                                        throw e;
+                                    } catch (Exception e) {
+                                        if (expectedRes == VALID) {
+                                            throw new BadWriteException(xactLabel, step, true);
+                                        } else {
+                                            logCommand("write failed as expected");
+                                            throw e;
+                                        }
+                                    }
                                     break;
                                 }
                                 case READ: {
@@ -319,6 +474,10 @@ public class OMVCCTest2 {
                                 }
                             }
                         }
+                    } catch (BadWriteException e) {
+                        throw e;
+                    } catch (CommitFailedException e) {
+                        throw e;
                     } catch (WrongResultException e) {
                         throw e;
                     } catch (Exception e) {
@@ -326,7 +485,7 @@ public class OMVCCTest2 {
                         if(e.getMessage() != null)
                             log.println("    "+e.getMessage());
                         else
-                            e.printStackTrace();
+                            e.printStackTrace(log);
                     }
                     break;
                 }
@@ -429,6 +588,12 @@ public class OMVCCTest2 {
     private static int STEP(int i) {
         return i-1;
     }
+
+    // write/commit successfully
+    public static Object[] VALID    = new Object[1]; // dummy value different than ROLLBACK
+    // write/commit results in rollback
+    public static Object[] ROLLBACK = new Object[2]; // dummy value different than VALID
+
     //result
     private static Object[] RESULT(int... arr) {
         Object[] resArr = new Object[arr.length];
@@ -459,6 +624,20 @@ public class OMVCCTest2 {
     static class ResultNotCheckedException extends RuntimeException {
         public ResultNotCheckedException(int xactLabel, int step) {
             super("The result in T("+xactLabel+") in step " + (step+1) + " is not checked.");
+        }
+    }
+
+    static class BadWriteException extends RuntimeException {
+        public BadWriteException(int xactLabel, int step, boolean expectedSuccess) {
+            super("It was expected of T(" + xactLabel + ") in step " + (step+1)
+                  + " to " + (expectedSuccess ? "succeed" : "fail") + " but it didn't.");
+        }
+    }
+
+    static class CommitFailedException extends RuntimeException {
+        public CommitFailedException(int xactLabel, int step, boolean expectedSuccess) {
+            super("It was expected of T(" + xactLabel + ") in step " + (step+1)
+                  + " to " + (expectedSuccess ? "succeed" : "fail") + " but it didn't.");
         }
     }
 }

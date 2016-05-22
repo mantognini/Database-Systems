@@ -37,8 +37,8 @@ else
         java -ea -cp ./classes OMVCCTest1
 end
 
-# RUN TEST 2, with subtests 1 - 4
-for TEST in (seq 4)
+# RUN TEST 2, with subtests 1 - 6
+for TEST in (seq 6)
         if [ $countScala != 0 ]
                 java -cp $SCALA_HOME/lib/scala-library.jar:./classes OMVCCTest2 $TEST
                 # java -cp $SCALA_HOME/lib/scala-library.jar:./classes OMVCCTest2 $TEST > /dev/null 2>&1
@@ -48,9 +48,9 @@ for TEST in (seq 4)
         end
 
         if [ $status != 0 ]
-                echo "TEST $testNum: FAILED"
+                echo "TEST $TEST: FAILED"
         else
-                echo "TEST $testNum: PASSED"
+                echo "TEST $TEST: PASSED"
         end
 end
 
