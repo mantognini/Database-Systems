@@ -103,15 +103,17 @@ object OMVCC {
 
     val l = new java.util.ArrayList[Integer]
 
-    def process(key: Int, value: Int): Unit =
+    def process(key: Int, value: Int): Unit = {
       if (value % k == 0) l add value
+      t.readPreds += key
+    }
 
     for { key <- storage.keys } {
       if (t.undoBuffer contains key) {
         val value = getTemporaryVersion(t, xact, key)
         process(key, value)
       } else {
-        getMostRecentReadableVersion(t, key) foreach { process(key, _) }
+        getMostRecentReadableVersion(t, key) foreach { value => process(key, value) }
       }
     }
 
